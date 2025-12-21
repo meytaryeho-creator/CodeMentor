@@ -49,3 +49,9 @@ export interface TraceState {
   data: ExecutionTrace | null;
   error: string | null;
 }
+
+// Refine / Chat Agent Types
+export interface RefineResult {
+  newCode: string;
+  explanation: string;
+}

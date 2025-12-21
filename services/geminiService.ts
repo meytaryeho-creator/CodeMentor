@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AnalysisResult, ExecutionTrace } from "../types";
+import { AnalysisResult, ExecutionTrace, RefineResult } from "../types";
 
 const apiKey = process.env.API_KEY;
 
@@ -96,6 +96,22 @@ const traceSchema: Schema = {
   required: ["inputDescription", "steps", "finalOutput"]
 };
 
+// Schema for Refinement
+const refineSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    newCode: {
+      type: Type.STRING,
+      description: "The updated code based on user instructions.",
+    },
+    explanation: {
+      type: Type.STRING,
+      description: "A short explanation in Hebrew of what changes were made.",
+    }
+  },
+  required: ["newCode", "explanation"]
+};
+
 const getAIClient = () => {
   if (!apiKey) {
     throw new Error("API Key is missing.");
@@ -180,5 +196,46 @@ export const traceCodeWithGemini = async (code: string): Promise<ExecutionTrace>
   } catch (error) {
     console.error("Gemini Trace Error:", error);
     throw new Error("Failed to generate execution trace.");
+  }
+};
+
+export const refineCodeWithGemini = async (currentCode: string, instruction: string): Promise<RefineResult> => {
+  const ai = getAIClient();
+
+  const prompt = `
+    You are an intelligent Code Assistant Bot.
+    
+    CURRENT CODE:
+    ${currentCode}
+    
+    USER INSTRUCTION:
+    ${instruction}
+    
+    Task:
+    1. Update the code to satisfy the user's instruction.
+    2. Keep the rest of the code logic intact unless it needs to change.
+    3. Provide a short explanation in Hebrew.
+    
+    Output JSON matching the schema.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: refineSchema,
+        temperature: 0.3,
+      },
+    });
+
+    const resultText = response.text;
+    if (!resultText) throw new Error("No response from Gemini.");
+    return JSON.parse(resultText) as RefineResult;
+
+  } catch (error) {
+    console.error("Gemini Refine Error:", error);
+    throw new Error("Failed to refine code.");
   }
 };
